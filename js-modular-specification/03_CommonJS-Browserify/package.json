@@ -1,0 +1,10 @@
+{
+  "name": "browserify-test",
+  "version": "1.0.0",
+  "scripts": {
+    "build":"browserify js/src/app.js -o js/dist/bundle.js"
+  },
+  "devDependencies": {
+    "browserify": "^17.0.0"
+  }
+}
