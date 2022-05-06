@@ -40,16 +40,20 @@ browserify app.js -o dist/bundle.js
 
 ##### the module map
 
-第一个参数e是一个用到模块列表，可以叫map,key是一个唯一的数字，value是两个元素的数组。
+第一个参数modulesMap是一个用到模块列表map,map的key是一个唯一的数字（可以叫moduleId)，value是两个元素的数组。value数组的第一个元素是对应模块定义的函数化封装，第二个元素是依赖模块列表的信息，包括模块名和moduleId
 
-比如下图：
+函数化封装的用意是，外层准备require, module, exports，调用这个函数是后，module就封装了这个模块的js对象
+
+比如下图调用第二个，就有了entry.js模块的js对象
 
 ```javascript
 {
+  // 来自dep.js
   1: [function (require, module, exports) {
     module.exports = 'DEP';
 
   }, {}],
+  // 来自entry.js
   2: [function (require, module, exports) {
     require('./dep');
 
@@ -116,9 +120,10 @@ browserify app.js -o dist/bundle.js
 })
 ```
 
-### 工作的步骤
+### browserrify bunlder.js的工作的步骤
 
-browserify bundle.js工作的步骤
+这里用上边的`entry.js,dep.js`两个模块的项目来说明工作步骤
+
 1 外层IIFE自动执行，返回r(modulesMap,cache,entry)函数
 
 ```javascript
@@ -150,49 +155,75 @@ browserify bundle.js工作的步骤
     module.exports = 'ENTRY';
 
   }, {"./dep": 1}]
-}
+},
+{},
+[2]
 ```
 
-3 遍历entry数组（即入口可能有多个）,获取每个最入口js模块的js独享
+3 遍历entry数组（即入口可能有多个）,获取每个入口js模块的js独享
 
+:bulb: 之所以数组是因为入口可能有多个
+
+本例中就只有一个入口，也就是entry.js,moduleId = 2, 调用newRequire(2)，会去获得最外层，也就是entry.js模块的js对象
 
 ```javascript
-// 比如 i=0, entry[0] = 2，调用newRequire(2)，会去获得最外层，也就是entry.js模块的js对象
     for(var i=0;i<entry.length;i++) newRequire(entry[i]);
 ```
 
 
-4 调用`newRequire`方法获得入口模块的js对象
+4 调用`newRequire`方法获得entry.js模块(moduleId=2)的js对象
 
-当前方法的变量： moduleKeyId=2（对应entry.js模块）
+当前方法的变量： moduleId=2（对应entry.js模块）
 
-4.1 执行`modulesMap[moduleKeyId][0].call`获取`entry.js`模块，`entry.js`模块内部依赖的`dep.js`模块对象会调用传入的require函数返回
-4.2 执行`return cache[moduleKeyId].exports`，返回
+4.1 执行`modulesMap[2][0].call`获取`entry.js`模块，`entry.js`模块内部依赖的`dep.js`模块对象会通过第二个参数（也就是传入的require函数）获得
+
+4.1.1 `modulesMap[2][0]`对应的如下方法
 
 ```javascript
-        function newRequire(moduleKeyId, jumped) {
-            //如果缓存中不存在
-            if (!cache[moduleKeyId]) { 
-                if (!modulesMap[moduleKeyId]) { 
+    function(require,module,exports){
+        let dep = require('./dep');
+        console.log(dep);
+        // console.log(modulesMap);
+        module.exports = "entry";
+    }
+```
+
+4.1.2 以上方法是browserify过程中对entry.js的函数化封装，通过调用就可以获取entry.js的模块对象
+
+4.1.3 调用时会把如下函数传给require参数，里边调用newRequire('dep.js的moduleId')来返回dep.js的模块对象
+
+```javascript
+    function (moduleName) { 
+          var keyId = modulesMap[moduleId][1][moduleName];
+          return newRequire(keyId || moduleName) 
+    }
+```
+
+4.2 执行`return cache[moduleId].exports`，返回给外层
+
+```javascript
+        function newRequire(moduleId, jumped) {
+            if (!cache[moduleId]) { 
+                if (!modulesMap[moduleId]) { 
                     var currentRequire = "function" == typeof require && require; 
-                    if (!jumped && currentRequire) return currentRequire(moduleKeyId, !0); 
-                    if (previousRequire) return previousRequire(moduleKeyId, !0); 
-                    var a = new Error("Cannot find module '" + moduleKeyId + "'"); throw a.code = "MODULE_NOT_FOUND", a 
+                    if (!jumped && currentRequire) return currentRequire(moduleId, !0); 
+                    if (previousRequire) return previousRequire(moduleId, !0); 
+                    var a = new Error("Cannot find module '" + moduleId + "'"); throw a.code = "MODULE_NOT_FOUND", a 
                 } 
-                var _module = cache[moduleKeyId] = { exports: {} }; 
-                modulesMap[moduleKeyId][0].call(
+                var _module = cache[moduleId] = { exports: {} }; 
+                modulesMap[moduleId][0].call(
                     //call函数的第一个参数，用来重定义this对象
                     _module.exports,
-                    //就是require的定义，传入模块id调用，会返回模块对象
+                    //就是require的匿名定义，内部会调用newRequire方法，传入参数就是dep.js模块id也就是1，匿名方法调用后会返回dep.js模块对象
                     function (moduleName) { 
-                         var keyId = modulesMap[moduleKeyId][1][moduleName];
+                         var keyId = modulesMap[moduleId][1][moduleName];
                          return newRequire(keyId || moduleName) 
                     },
                     _module, _module.exports, r, modulesMap, cache, entry
                 ) 
             }
-            //返回 cache[moduleKeyId].exports,也就是 _module.exports
-            return cache[moduleKeyId].exports
+            //返回 cache[moduleId].exports,也就是 _module.exports
+            return cache[moduleId].exports
         }
 ```
 
