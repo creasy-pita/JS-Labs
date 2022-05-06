@@ -1,31 +1,36 @@
 
 # browserify模块化
 
-## 构建项目结构
+是commonjs模块化规范中的一种浏览器端中的实现，
+服务器端的实现是node,可以直接使用 node entry.js来运行
 
-## 下载browserify
+## 使用过程
+
+### 构建项目结构
+
+### 下载browserify
 
 全局 npm install browserify -g
 局部 npm install browserify --save-dev
 
-## 使用browserify编译打包
+### 使用browserify编译打包
 
 browserify app.js -o dist/bundle.js
 
-## 打包文件放到html
+### 打包文件放到html
 
 ```html
 <script type="text/javascript" src="dist/bundle.js" ></script>
 ```
 
-### 打包后bundle.js文件解读
+## 打包后bundle.js文件解读
 
 参考：
 <http://zhenhua-lee.github.io/nodejs/browserify.html>
 <https://benclinkinbeard.com/posts/how-browserify-works/>
 <https://github.com/browserify/browser-pack/blob/d29fddc8a9207d5f967664935073b50971aff708/prelude.js>
 
-#### IIFE
+### IIFE
 
 最外部是一个IIFE,第二层是一个`function r(modulesMap,cache,entry)`的定义和返回
 参数包括modulesMap,cache,entry;简单的原型如下;
@@ -38,13 +43,13 @@ browserify app.js -o dist/bundle.js
 })()(params)
 ```
 
-##### the module map
+#### the module map
 
-第一个参数modulesMap是一个用到模块列表map,map的key是一个唯一的数字（可以叫moduleId)，value是两个元素的数组。value数组的第一个元素是对应模块定义的函数化封装，第二个元素是依赖模块列表的信息，包括模块名和moduleId
+第一个参数modulesMap是一个用到模块列表map,map的key是一个唯一的数字（可以叫moduleId)，value是两个元素的数组。value数组的第一个元素是对应js模块文件的函数化封装，第二个元素是依赖模块列表的信息，包括模块名和moduleId
 
-函数化封装的用意是，外层准备require, module, exports，调用这个函数是后，module就封装了这个模块的js对象
+**函数化封装的作用**是：外层准备require, module, exports，调用这个函数后，module就封装了这个模块的js对象
 
-比如下图调用第二个，就有了entry.js模块的js对象
+比如下图调用第二个的function，就有了entry.js模块的js对象
 
 ```javascript
 {
@@ -63,15 +68,15 @@ browserify app.js -o dist/bundle.js
 }
 ```
 
-##### cache
+#### cache
 
-第二个参数n是模块的缓存
+第二个参数n是模块的缓存,类似于map的结构，key是moduleId,value是模块的js对象
 
-##### entry modules
+#### entry modules
 
-第三个参数是id，它是构建这个依赖图的`入口模块`的id
+第三个参数是moduleId，它是构建这个依赖图的`入口模块`的moduleId
 
-#### Making it all work
+### Making it all work
 
 上面的整个函数有一个通俗版本[prelude.js](https://github.com/browserify/browser-pack/blob/d29fddc8a9207d5f967664935073b50971aff708/prelude.js)
 
@@ -120,7 +125,7 @@ browserify app.js -o dist/bundle.js
 })
 ```
 
-### browserrify bunlder.js的工作的步骤
+## browserrify bunlder.js的工作的步骤
 
 这里用上边的`entry.js,dep.js`两个模块的项目来说明工作步骤
 
@@ -160,7 +165,7 @@ browserify app.js -o dist/bundle.js
 [2]
 ```
 
-3 遍历entry数组（即入口可能有多个）,获取每个入口js模块的js独享
+3 遍历entry数组,获取每个入口js模块的js对象
 
 :bulb: 之所以数组是因为入口可能有多个
 
@@ -171,7 +176,7 @@ browserify app.js -o dist/bundle.js
 ```
 
 
-4 调用`newRequire`方法获得entry.js模块(moduleId=2)的js对象
+4 调用`newRequire`方法获得entry.js模块(moduleId=2)的js对象，entry.js依赖的dep.js模块会通过递归的方式设置（会在下文提到）
 
 当前方法的变量： moduleId=2（对应entry.js模块）
 
@@ -180,6 +185,7 @@ browserify app.js -o dist/bundle.js
 4.1.1 `modulesMap[2][0]`对应的如下方法
 
 ```javascript
+// 这里取名entryJsModuleBundle
     function(require,module,exports){
         let dep = require('./dep');
         console.log(dep);
@@ -188,9 +194,9 @@ browserify app.js -o dist/bundle.js
     }
 ```
 
-4.1.2 以上方法是browserify过程中对entry.js的函数化封装，通过调用就可以获取entry.js的模块对象
+4.1.2 以上entryJsModuleBundle是browserify过程中对entry.js的函数化封装，通过调用就可以获取entry.js的模块对象
 
-4.1.3 调用时会把如下函数传给require参数，里边调用newRequire('dep.js的moduleId')来返回dep.js的模块对象
+4.1.3 调用entryJsModuleBundle时会把如下函数传给require参数，entryJsModuleBundle内部执行require('./dep'),require函数里边调用newRequire('dep.js的moduleId')来返回dep.js的模块对象
 
 ```javascript
     function (moduleName) { 
@@ -227,6 +233,7 @@ browserify app.js -o dist/bundle.js
         }
 ```
 
-问题
-`function newRequire`作用
-`return newRequire`干什么用
+## 问题
+
+`function newRequire`作用：获取指定moduleId的模块对象，如果过程中有依赖的模块，会递归方式设置
+`return newRequire`作用：调用者如果需要，可以接收，本例中其实没有用到

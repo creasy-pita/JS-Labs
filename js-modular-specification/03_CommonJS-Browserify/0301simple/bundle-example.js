@@ -18,7 +18,7 @@ var outer =
                 modulesMap[moduleId][0].call(
                     //call函数的第一个参数，用来重定义this对象
                     _module.exports,
-                    //就是require的定义，传入模块id调用，会返回模块对象
+                    //就是require的定义，传入模块id调用会返回指定模块的js对象
                     function (moduleName) { 
                          var id = modulesMap[moduleId][1][moduleName];
                         //  console.log(id);
